@@ -10,26 +10,26 @@
 import { ethers, network } from 'hardhat';
 import { use, expect } from 'chai';
 import { solidity } from "ethereum-waffle";
-import { Contract } from 'ethers';
+import { Contract, providers } from 'ethers';
 
 use(solidity);
 
 describe("🚩 Challenge 1: 🥩 Decentralized Staking App", function () {
 
   this.timeout(120000);
-  
+
   let exampleExternalContract: Contract;
-  let stakerContract:  Contract;
+  let stakerContract: Contract;
   //console.log("hre:",Object.keys(hre)) // <-- you can access the hardhat runtime env here
 
   describe("Staker", function () {
 
-    if(process.env.CONTRACT_ADDRESS){
+    if (process.env.CONTRACT_ADDRESS) {
       it("Should connect to external contract", async function () {
-        stakerContract = await ethers.getContractAt("Staker",process.env.CONTRACT_ADDRESS!);
-        console.log("     🛰 Connected to external contract",stakerContract.address)
+        stakerContract = await ethers.getContractAt("Staker", process.env.CONTRACT_ADDRESS!);
+        console.log("     🛰 Connected to external contract", stakerContract.address)
       });
-    }else{
+    } else {
       it("Should deploy ExampleExternalContract", async function () {
         const ExampleExternalContract = await ethers.getContractFactory("ExampleExternalContract");
         exampleExternalContract = await ExampleExternalContract.deploy();
@@ -42,65 +42,65 @@ describe("🚩 Challenge 1: 🥩 Decentralized Staking App", function () {
 
     describe("mintItem()", function () {
       it("Balance should go up when you stake()", async function () {
-        const [ owner ] = await ethers.getSigners();
+        const [owner] = await ethers.getSigners();
 
-        console.log('\t'," 🧑‍🏫 Tester Address: ",owner.address)
+        console.log('\t', " 🧑‍🏫 Tester Address: ", owner.address)
 
-        const startingBalance = await stakerContract.balances(owner.address)
-        console.log('\t'," ⚖️ Starting balance: ",startingBalance.toNumber())
+        const startingBalance = await stakerContract.balances(owner.address);
+        console.log('\t', " ⚖️ Starting balance: ", startingBalance.toNumber());
 
-        console.log('\t'," 🔨 Staking...")
-        const stakeResult = await stakerContract.stake({value: ethers.utils.parseEther("0.001")});
-        console.log('\t'," 🏷  stakeResult: ",stakeResult.hash)
+        console.log('\t', " 🔨 Staking...")
+        const stakeResult = await stakerContract.stake({ value: ethers.utils.parseEther("0.001") })
+        // .to.emit(owner.address, 'You have just staked with us');
+        // .withArgs(owner.address, walletTo.address, 7);
+        console.log('\t', " 🏷  stakeResult: ", stakeResult.hash);
 
-        console.log('\t'," ⏳ Waiting for confirmation...")
-        const txResult =  await stakeResult.wait()
+        console.log('\t', " ⏳ Waiting for confirmation...")
+        const txResult = await stakeResult.wait()
         expect(txResult.status).to.equal(1);
 
         const newBalance = await stakerContract.balances(owner.address)
-        console.log('\t'," 🔎 New balance: ", ethers.utils.formatEther(newBalance))
+        console.log('\t', " 🔎 New balance: ", ethers.utils.formatEther(newBalance))
         expect(newBalance).to.equal(startingBalance.add(ethers.utils.parseEther("0.001")));
 
+        await expect(stakeResult).to.emit(stakerContract, "LogStake");
       });
 
 
-      if(process.env.CONTRACT_ADDRESS){
+      if (process.env.CONTRACT_ADDRESS) {
         console.log(" 🤷 since we will run this test on a live contract this is as far as the automated tests will go...")
-      }else{
+      } else {
 
         it("If enough is staked and time has passed, you should be able to complete", async function () {
 
           const timeLeft1 = await stakerContract.timeLeft()
-          console.log('\t',"⏱ There should be some time left: ",timeLeft1.toNumber())
+          console.log('\t', "⏱ There should be some time left: ", timeLeft1.toNumber())
           expect(timeLeft1.toNumber()).to.greaterThan(0);
 
+          console.log('\t', " 🚀 Staking a full eth!")
+          const stakeResult = await stakerContract.stake({ value: ethers.utils.parseEther("1") });
+          console.log('\t', " 🏷  stakeResult: ", stakeResult.hash)
 
-          console.log('\t'," 🚀 Staking a full eth!")
-          const stakeResult = await stakerContract.stake({value: ethers.utils.parseEther("1")});
-          console.log('\t'," 🏷  stakeResult: ",stakeResult.hash)
-
-          console.log('\t'," ⌛️ fast forward time...")
-          await network.provider.send("evm_increaseTime", [3600])
+          console.log('\t', " ⌛️ fast forward time...")
+          await network.provider.send("evm_increaseTime", [72 * 3600])
           await network.provider.send("evm_mine")
 
           const timeLeft2 = await stakerContract.timeLeft()
-          console.log('\t',"⏱ Time should be up now: ",timeLeft2.toNumber())
+          console.log('\t', "⏱ Time should be up now: ", timeLeft2.toNumber())
           expect(timeLeft2.toNumber()).to.equal(0);
 
-          console.log('\t'," 🎉 calling execute")
+          console.log('\t', " 🎉 calling execute")
           const execResult = await stakerContract.execute();
-          console.log('\t'," 🏷  execResult: ",execResult.hash)
+          console.log('\t', " 🏷  execResult: ", execResult.hash)
 
           const result = await exampleExternalContract.completed()
-          console.log('\t'," 🥁 complete: ",result)
+          console.log('\t', " 🥁 complete: ", result)
           expect(result).to.equal(true);
 
         })
 
-
-
         it("Should redeploy Staker, stake, not get enough, and withdraw", async function () {
-          const [ owner, secondAccount ] = await ethers.getSigners();
+          const [owner, secondAccount] = await ethers.getSigners();
 
           const ExampleExternalContract = await ethers.getContractFactory("ExampleExternalContract");
           exampleExternalContract = await ExampleExternalContract.deploy();
@@ -108,44 +108,69 @@ describe("🚩 Challenge 1: 🥩 Decentralized Staking App", function () {
           const Staker = await ethers.getContractFactory("Staker");
           stakerContract = await Staker.deploy(exampleExternalContract.address);
 
-          console.log('\t'," 🔨 Staking...")
-          const stakeResult = await stakerContract.connect(secondAccount).stake({value: ethers.utils.parseEther("0.001")});
-          console.log('\t'," 🏷  stakeResult: ",stakeResult.hash)
+          console.log('\t', " 🔨 Staking...")
+          const stakeResult = await stakerContract.connect(secondAccount).stake({ value: ethers.utils.parseEther("0.001") });
+          console.log('\t', " 🏷  stakeResult: ", stakeResult.hash)
 
-          console.log('\t'," ⏳ Waiting for confirmation...")
-          const txResult =  await stakeResult.wait()
+          console.log('\t', " ⏳ Waiting for confirmation...")
+          const txResult = await stakeResult.wait()
           expect(txResult.status).to.equal(1);
 
-          console.log('\t'," ⌛️ fast forward time...")
-          await network.provider.send("evm_increaseTime", [3600])
+          console.log('\t', " ⌛️ fast forward time...")
+          await network.provider.send("evm_increaseTime", [72 * 3600])
           await network.provider.send("evm_mine")
 
-          console.log('\t'," 🎉 calling execute")
-          const execResult = await stakerContract.execute();
-          console.log('\t'," 🏷  execResult: ",execResult.hash)
+          console.log('\t', " 🎉 calling execute")
+          // const execResult = await stakerContract.execute();
+          await expect(stakerContract.execute()).to.be.revertedWith("threshold not reached");
+          await expect(stakerContract.execute()).to.be.reverted;
 
           const result = await exampleExternalContract.completed()
-          console.log('\t'," 🥁 complete should be false: ",result)
+          console.log('\t', " 🥁 complete should be false: ", result)
           expect(result).to.equal(false);
 
 
           const startingBalance = await ethers.provider.getBalance(secondAccount.address);
-          //console.log("startingBalance before withdraw", ethers.utils.formatEther(startingBalance))
+          console.log("\t 💵 startingBalance before withdraw", ethers.utils.formatEther(startingBalance))
 
-          console.log('\t'," 💵 calling withdraw")
+          console.log('\t', " 💵 calling withdraw")
           const withdrawResult = await stakerContract.connect(secondAccount).withdraw();
-          console.log('\t'," 🏷  withdrawResult: ",withdrawResult.hash)
-          
+          console.log('\t', " 🏷  withdrawResult: ", withdrawResult.hash)
+
           // need to account for the gas cost from calling withdraw
           const tx = await ethers.provider.getTransaction(withdrawResult.hash);
           const receipt = await ethers.provider.getTransactionReceipt(withdrawResult.hash);
           const gasCost = tx.gasPrice?.mul(receipt.gasUsed);
 
           const endingBalance = await ethers.provider.getBalance(secondAccount.address);
-          //console.log("endingBalance after withdraw", ethers.utils.formatEther(endingBalance))
+          // console.log("endingBalance after withdraw", ethers.utils.formatEther(endingBalance))
 
           expect(endingBalance).to.equal(startingBalance.add(ethers.utils.parseEther("0.001")).sub(ethers.BigNumber.from(gasCost)));
+        });
 
+        it("should be able to withdraw if amount not 1 ether", async () => {
+          const [owner] = await ethers.getSigners();
+
+          console.log('\t', " 🔨 Staking...")
+          const stakeResult = await stakerContract.stake({ value: ethers.utils.parseEther("0.1") })
+
+          const txResult = await stakeResult.wait()
+          expect(txResult.status).to.equal(1);
+
+          const balAfterStaking = await stakerContract.balances(owner.address);
+          expect(balAfterStaking).to.equal(ethers.utils.parseEther("0.1"));
+          console.log("\n\tbalance after staking", ethers.utils.formatEther(balAfterStaking));
+
+          //30 seconds passing
+          console.log('\t', " ⌛️ fast forward time...")
+          await network.provider.send("evm_increaseTime", [72 * 3600])
+          await network.provider.send("evm_mine")
+
+          //test withdrawal
+          await stakerContract.withdraw();
+          const balAfterStaking2 = await stakerContract.balances(owner.address);
+          expect(balAfterStaking2).to.equal(0);
+          console.log("\n\tbalance after withdrawal", ethers.utils.formatEther(balAfterStaking2));
         });
       }
       //

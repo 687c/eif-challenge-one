@@ -42,8 +42,9 @@ export const Staker: FC<StakerProps> = (props) => {
 
   const [threshold, setThreshold] = useState<BigNumber>();
   useEffect(() => {
+    console.log("stake contract", stakeContractWrite);
     const getThreshold = async () => {
-      const threshold = await stakeContractRead?.threshold();
+      const threshold = await stakeContractRead?.THRESHOLD();
       console.log('💵 threshold:', threshold);
       setThreshold(threshold);
     };
